@@ -1,0 +1,24 @@
+dn: ou=people,dc=ldap,dc=asd,dc=msd,dc=localhost
+objectClass: top
+objectClass: organizationalUnit
+ou: people
+
+dn: uid=ben,ou=people,dc=ldap,dc=asd,dc=msd,dc=localhost
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Ben
+sn: Ben
+uid: ben
+userPassword: 2
+
+dn: uid=jake,ou=people,dc=ldap,dc=asd,dc=msd,dc=localhost
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Jake
+sn: Jake
+uid: jake
+userPassword: 1

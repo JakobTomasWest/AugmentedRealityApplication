@@ -1,0 +1,25 @@
+# Gradle build outputs & cache
+.gradle/
+build/
+out/
+
+# IDE junk
+**/.idea/
+**/*.iml
+**/.project
+**/.classpath
+**/.settings/
+
+# OS junk
+**/.DS_Store
+
+# Local uploads (we’ll mount a volume in Compose instead)
+uploads/
+
+# Git metadata (never needed in image)
+.git/
+.gitignore
+
+# Logs & temp files
+*.log
+tmp/

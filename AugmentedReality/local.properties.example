@@ -1,0 +1,21 @@
+# Copy this file to local.properties and fill in the values for your machine.
+# local.properties is listed in .gitignore and is NEVER committed to version control.
+
+# ── Required ────────────────────────────────────────────────────────────────
+
+# Path to your Android SDK installation.
+sdk.dir=/path/to/Android/sdk
+
+# ── Optional ─────────────────────────────────────────────────────────────────
+
+# If your default JAVA_HOME points to a JDK older than 17, uncomment and set
+# the path to a JDK 17+ installation. The Android Gradle Plugin requires Java 17.
+#
+# macOS (Temurin via SDKMAN / Homebrew):
+#   org.gradle.java.home=/Library/Java/JavaVirtualMachines/temurin-17.x.x/Contents/Home
+#
+# Windows:
+#   org.gradle.java.home=C:\\Program Files\\Eclipse Adoptium\\jdk-17.x.x-hotspot
+#
+# org.gradle.java.home=/path/to/jdk-17
+
