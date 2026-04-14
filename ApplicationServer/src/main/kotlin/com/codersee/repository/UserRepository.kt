@@ -13,10 +13,23 @@ import javax.naming.directory.BasicAttribute
 import javax.naming.directory.BasicAttributes
 import javax.naming.directory.InitialDirContext
 import javax.naming.ldap.LdapName
+import javax.naming.ldap.Rdn
 
-class UserRepository {
+class UserRepository(application: Application) {
 
-    val ldapURL = "ldap://ldap.asd.msd.localhost:1389"
+    private val config = application.environment.config
+    private val ldapURL = config.propertyOrNull("ldap.url")?.getString()
+        ?: System.getenv("LDAP_URL")
+        ?: "ldap://localhost:1389"
+    private val baseDn = config.propertyOrNull("ldap.baseDn")?.getString()
+        ?: System.getenv("LDAP_BASE_DN")
+        ?: "dc=ldap,dc=asd,dc=msd,dc=localhost"
+    private val bindDn = config.propertyOrNull("ldap.bindDn")?.getString()
+        ?: System.getenv("LDAP_BIND_DN")
+        ?: "cn=admin,dc=ldap,dc=asd,dc=msd,dc=localhost"
+    private val bindPw = config.propertyOrNull("ldap.bindPw")?.getString()
+        ?: System.getenv("LDAP_BIND_PW")
+        ?: "adminpassword"
 
 
     fun findByUsername(username: String): User? {
@@ -26,12 +39,12 @@ class UserRepository {
             this[Context.PROVIDER_URL] = ldapURL
             //The new openLDAP container doesn't allow anonymous searches
             //so we must log in as admin here, just to do a query
-            this[Context.SECURITY_CREDENTIALS] = "adminpassword"
-            this[Context.SECURITY_PRINCIPAL] = "cn=admin,dc=ldap,dc=asd,dc=msd,dc=localhost"
+            this[Context.SECURITY_CREDENTIALS] = bindPw
+            this[Context.SECURITY_PRINCIPAL] = bindDn
         })
 
         val answer = dc.search(
-            "dc=ldap,dc=asd,dc=msd,dc=localhost",
+            baseDn,
             BasicAttributes(true).apply {
                 put(BasicAttribute("cn", username))
             },
@@ -57,15 +70,15 @@ class UserRepository {
             val env = Hashtable<String?, Any?>()
             env[Context.INITIAL_CONTEXT_FACTORY] = "com.sun.jndi.ldap.LdapCtxFactory"
             env[Context.PROVIDER_URL] = ldapURL
-            env[Context.SECURITY_CREDENTIALS] = "adminpassword"
-            env[Context.SECURITY_PRINCIPAL] = "cn=admin,dc=ldap,dc=asd,dc=msd,dc=localhost"
+            env[Context.SECURITY_CREDENTIALS] = bindPw
+            env[Context.SECURITY_PRINCIPAL] = bindDn
 
             val dirContext = InitialDirContext(env)
 
             //create info about the new user
             val cn = user.username
             //TODO: return error if username has special chars in it
-            val username = LdapName("cn=$cn,dc=ldap,dc=asd,dc=msd,dc=localhost")
+            val username = LdapName("cn=${Rdn.escapeValue(cn)},$baseDn")
             val attributes = BasicAttributes(true).apply {
                 put(BasicAttribute("cn", cn))
                 put(BasicAttribute("sn", "lastNameIsUnusedButRequired"))
@@ -87,7 +100,7 @@ class UserRepository {
         }
     }
 
-    private fun nameToDN(name: String) = LdapName("cn=$name,dc=ldap,dc=asd,dc=msd,dc=localhost")
+    private fun nameToDN(name: String) = LdapName("cn=${Rdn.escapeValue(name)},$baseDn")
 
     fun ldapAuth(loginRequest: LoginRequest): UserIdPrincipal? {
         val pwdCred = UserPasswordCredential(loginRequest.username, loginRequest.password)

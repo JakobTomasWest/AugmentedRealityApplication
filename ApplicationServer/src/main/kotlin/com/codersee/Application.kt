@@ -14,7 +14,7 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-  val userRepository = UserRepository()
+  val userRepository = UserRepository(this)
   val userService = UserService(userRepository)
   val jwtService = JwtService(this, userService)
 

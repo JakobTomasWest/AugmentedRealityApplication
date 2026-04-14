@@ -1,7 +1,6 @@
 services:
   openldap:
     image: bitnamilegacy/openldap:2.6.10
-    container_name: openldap
     hostname: ldap
     domainname: asd.msd.localhost            # FQDN becomes ldap.asd.msd.localhost
     environment:
@@ -26,7 +25,6 @@ services:
 
   app:
     build: .
-    container_name: ktor-app
     depends_on:
       openldap:
         condition: service_healthy
@@ -37,7 +35,7 @@ services:
       - PORT=8080
       - UPLOAD_ROOT=/app/uploads
       - LDAP_URL=ldap://openldap:1389
-      - LDAP_BASE_DN=ou=users,dc=ldap,dc=asd,dc=msd,dc=localhost
+      - LDAP_BASE_DN=dc=ldap,dc=asd,dc=msd,dc=localhost
       - LDAP_BIND_DN=cn=admin,dc=ldap,dc=asd,dc=msd,dc=localhost
       - LDAP_BIND_PW=adminpassword
       - ML_URL=http://ml:8000
@@ -61,8 +59,8 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - hf-cache:/root/.cache/huggingface
-    expose:
-      - "8000"                       # internal only (do NOT publish a host port)
+    ports:
+      - "8001:8000"                  # local Gradle Ktor reaches ML at localhost:8001
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/healthz').getcode()==200 else sys.exit(1)"]
       interval: 10s

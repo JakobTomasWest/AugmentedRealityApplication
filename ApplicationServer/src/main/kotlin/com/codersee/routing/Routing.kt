@@ -15,7 +15,7 @@ fun Application.configureRouting(
 ) {
   routing {
     // Public routes
-    route("/api/auth") { authRoute(jwtService) }
+    route("/api/auth") { authRoute(jwtService, userService) }
     route("/api/user") { userRoute(userService) }
 
     authenticate {

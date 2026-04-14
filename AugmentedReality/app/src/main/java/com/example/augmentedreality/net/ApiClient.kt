@@ -156,6 +156,15 @@ class ApiClient(private val debugLogging: Boolean = true) {
             accept(ContentType.Application.Json)
         }.body()
 
+    suspend fun deletePhoto(token: String, name: String) {
+        val resp = client.delete("/api/upload/${Uri.encode(name)}") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        if (!resp.status.isSuccess()) {
+            throw IllegalStateException("Delete failed: ${resp.status} ${resp.bodyAsText()}")
+        }
+    }
+
     /**
      * Construct full URL for accessing a photo on the server.
      *

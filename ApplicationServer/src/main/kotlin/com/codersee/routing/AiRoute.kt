@@ -25,13 +25,14 @@ import kotlin.io.path.inputStream
 
 fun Route.aiRoute() {
     val mlBase = run {
-        val env = System.getenv("ML_URL")
-        if (!env.isNullOrBlank()) env
+        val configured = application.environment.config.propertyOrNull("ml.url")?.getString()
+            ?: System.getenv("ML_URL")
+        if (!configured.isNullOrBlank()) configured
         else {
             val resolves = try {
                 java.net.InetAddress.getByName("ml"); true
             } catch (_: Throwable) { false }
-            if (resolves) "http://ml:8000" else "http://localhost:8000"
+            if (resolves) "http://ml:8000" else "http://localhost:8001"
         }
     }
     val client = HttpClient(Apache) {
@@ -178,7 +179,9 @@ fun Route.aiRoute() {
             }
             get("/detect-name/{name}") {
                 val name = call.parameters["name"] ?: return@get call.respond(HttpStatusCode.BadRequest, "missing name")
-                val uploadRoot = System.getenv("UPLOAD_ROOT") ?: "/app/uploads"
+                val uploadRoot = application.environment.config.propertyOrNull("upload.root")?.getString()
+                    ?: System.getenv("UPLOAD_ROOT")
+                    ?: "uploads"
 
                 // pull user id from JWT (attempt common claim keys)
                 val principal = call.principal<JWTPrincipal>()

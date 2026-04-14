@@ -103,6 +103,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         return api.listPhotos(t)
     }
 
+    suspend fun deletePhoto(name: String) {
+        val t = ensureToken()
+        api.deletePhoto(t, name)
+    }
+
     fun photoUrl(name: String): String = api.photoUrl(name)
 
     fun currentTokenOrNull(): String? = token

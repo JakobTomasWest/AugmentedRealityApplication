@@ -28,9 +28,7 @@ fun Route.userRoute(userService: UserService) {
             name = "username",
             value = createdUser.username.toString()
         )
-        call.respond(
-            message = HttpStatusCode.Created
-        )
+        call.respond(HttpStatusCode.Created, "User created successfully")
     }
 
 
@@ -48,5 +46,4 @@ private fun User.toResponse(): UserResponse =
         //id = this.id,
         username = this.username
     )
-
 

@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,7 +45,9 @@ fun GalleryScreen(
     var files by remember { mutableStateOf<List<String>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var showLogin by remember { mutableStateOf(false) }
-    var analysis: String? by remember { mutableStateOf(null) }
+    var selectedPhoto by remember { mutableStateOf<String?>(null) }
+    var selectedAnalysis by remember { mutableStateOf<String?>(null) }
+    var detailBusy by remember { mutableStateOf(false) }
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -70,7 +73,7 @@ fun GalleryScreen(
 
     if (showLogin) {
         LoginDialog(
-            onDismiss = { showLogin = authState is CameraViewModel.AuthState.SignedOut },
+            onDismiss = { showLogin = false },
             onLogin = { user, pass ->
                 scope.launch {
                     error = null
@@ -86,7 +89,8 @@ fun GalleryScreen(
                         .onSuccess { showLogin = false }
                         .onFailure { e -> error = "Sign up failed: ${e.message}" }
                 }
-            }
+            },
+            errorMessage = error
         )
     }
 
@@ -129,11 +133,14 @@ fun GalleryScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         TextButton(onClick = {
+                            selectedPhoto = name
+                            selectedAnalysis = "Analyzing..."
+                            detailBusy = true
                             scope.launch {
-                                analysis = "Analyzing…"
                                 runCatching { vm.analyzeServerPhoto(name) }
-                                    .onSuccess { result -> analysis = result }
-                                    .onFailure { e -> analysis = "Analyze failed: ${e.message}" }
+                                    .onSuccess { result -> selectedAnalysis = result }
+                                    .onFailure { e -> selectedAnalysis = "Analyze failed: ${e.message}" }
+                                detailBusy = false
                             }
                         }) { Text("Analyze") }
                     }
@@ -141,21 +148,107 @@ fun GalleryScreen(
             }
         }
     }
-    if (analysis != null) {
-        AlertDialog(
-            onDismissRequest = { analysis = null },
-            title = { Text("Analysis Result") },
-            text = { Text(analysis ?: "") },
-            confirmButton = { TextButton(onClick = { analysis = null }) { Text("OK") } }
+
+    val detailName = selectedPhoto
+    if (detailName != null) {
+        PhotoDetailDialog(
+            name = detailName,
+            imageModel = ImageRequest.Builder(context)
+                .data(vm.photoUrl(detailName))
+                .addHeader("Authorization", "Bearer ${vm.currentTokenOrNull()}")
+                .build(),
+            analysis = selectedAnalysis,
+            busy = detailBusy,
+            onAnalyze = {
+                selectedAnalysis = "Analyzing..."
+                detailBusy = true
+                scope.launch {
+                    runCatching { vm.analyzeServerPhoto(detailName) }
+                        .onSuccess { result -> selectedAnalysis = result }
+                        .onFailure { e -> selectedAnalysis = "Analyze failed: ${e.message}" }
+                    detailBusy = false
+                }
+            },
+            onDelete = {
+                selectedAnalysis = "Deleting..."
+                detailBusy = true
+                scope.launch {
+                    runCatching { vm.deletePhoto(detailName) }
+                        .onSuccess {
+                            files = vm.listPhotos()
+                            selectedPhoto = null
+                            selectedAnalysis = null
+                        }
+                        .onFailure { e ->
+                            selectedAnalysis = "Delete failed: ${e.message}"
+                        }
+                    detailBusy = false
+                }
+            },
+            onDismiss = {
+                if (!detailBusy) {
+                    selectedPhoto = null
+                    selectedAnalysis = null
+                }
+            }
         )
     }
+}
+
+@Composable
+private fun PhotoDetailDialog(
+    name: String,
+    imageModel: ImageRequest,
+    analysis: String?,
+    busy: Boolean,
+    onAnalyze: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(name) },
+        text = {
+            Column {
+                AsyncImage(
+                    model = imageModel,
+                    contentDescription = name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(analysis ?: "Tap Analyze to detect objects in this photo.")
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !busy,
+                onClick = onAnalyze
+            ) { Text("Analyze") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    enabled = !busy,
+                    onClick = onDelete
+                ) { Text("Delete") }
+                TextButton(
+                    enabled = !busy,
+                    onClick = onDismiss
+                ) { Text("Close") }
+            }
+        }
+    )
 }
 
 @Composable
 private fun LoginDialog(
     onDismiss: () -> Unit,
     onLogin: (String, String) -> Unit,
-    onSignUp: (String, String) -> Unit
+    onSignUp: (String, String) -> Unit,
+    errorMessage: String?
 ){
     var user by remember {mutableStateOf("")}
     var pass by remember { mutableStateOf("") }
@@ -165,15 +258,25 @@ private fun LoginDialog(
         title = { Text("Sign in") },
         text = {
             Column {
-                OutlinedTextField(value = user,
-                    onValueChange = { user = it},
-                    label = { Text("Username")}
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text("Username") }
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = pass,
-                    onValueChange = { pass = it},
-                    label = { Text("Password")}
+                OutlinedTextField(
+                    value = pass,
+                    onValueChange = { pass = it },
+                    label = { Text("Password") }
                 )
+
+                if (errorMessage != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        modifier = Modifier.padding(4.dp)
+                    )
+                }
             }
         },
         confirmButton = {

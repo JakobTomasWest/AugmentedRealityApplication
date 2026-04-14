@@ -11,6 +11,7 @@ import kotlin.io.path.Path
 import kotlin.io.path.div
 import io.ktor.utils.io.*
 import java.nio.file.Files.createDirectories
+import java.nio.file.Files.deleteIfExists
 
 private val UPLOAD_ROOT: String = System.getenv("UPLOAD_ROOT") ?: "uploads"
 
@@ -90,5 +91,20 @@ fun Route.uploadRoute(){
         if (!wrote) return@post call.respond(HttpStatusCode.BadRequest, "No file part (expected 'image').")
 
         call.respond(HttpStatusCode.Created, target.name)
+    }
+
+    delete("{filename}") {
+        val username = extractPrincipalUsername(call) ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+        val raw = call.parameters["filename"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+        val filename = sanitize(raw)
+        if (filename.isBlank()) return@delete call.respond(HttpStatusCode.BadRequest, "Invalid filename.")
+
+        val target = uploadDir / username / filename
+        val deleted = deleteIfExists(target)
+        if (deleted) {
+            call.respond(HttpStatusCode.NoContent)
+        } else {
+            call.respond(HttpStatusCode.NotFound, "File not found.")
+        }
     }
 }
