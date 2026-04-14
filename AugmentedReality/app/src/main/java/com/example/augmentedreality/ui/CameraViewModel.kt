@@ -2,6 +2,7 @@ package com.example.augmentedreality.ui
 
 import android.app.Application
 import android.content.Context
+import android.graphics.RectF
 // import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Rational
@@ -287,7 +288,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     ic.targetRotation = rotation
                     ia.targetRotation = rotation
 
-                    val vp = ViewPort.Builder(Rational(4, 3), rotation)
+                    val vp = ViewPort.Builder(viewportRational(), rotation)
                         .setScaleType(ViewPort.FIT)
                         .build()
 
@@ -371,7 +372,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
     /**
      * Download a server photo by name, run detection w/ detectObjectsByName,
-     * and return a concise summary of labels. Public for GalleryScreen.
+     * and return the top detected labels. Public for GalleryScreen.
      */
 
     suspend fun analyzeServerPhoto(name: String): String {
@@ -380,7 +381,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         return if (dets.isEmpty()) {
             "No objects detected"
         } else {
-            dets.joinToString(separator = ", ", limit = 6) { "${it.label} ${(it.score * 100).toInt()}%" }
+            dets.take(10).joinToString(separator = "\n") { "${it.label} ${(it.score * 100).toInt()}%" }
         }
     }
 
@@ -450,33 +451,55 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             contentType = ct
         )
         return if (dets.isEmpty()) "No objects detected"
-        else dets.joinToString(limit = 5) { "${it.label} ${(it.score * 100).toInt()}%" }
+        else dets.take(10).joinToString { "${it.label} ${(it.score * 100).toInt()}%" }
     }
 
     // Take a photo with ImageCapture and save it to ARPreview by MediaStoreSaver
     private fun takePhoto(){
         val imageCapture = imageCapture ?: return //no image capture configured
         viewModelScope.launch {
-            try {
-                val savedUri: Uri? = MediaStoreSaver.savePhoto(getApplication(), imageCapture)
-                if (savedUri == null){
-                    _state.value = _state.value.copy(message = "Save failed: URI")
-                    return@launch
-                }
-
-                // Upload the saved photo to the server
-                val uploadedName = withContext(Dispatchers.IO) { uploadSavedPhoto(savedUri) }
-                val url = api.photoUrl(uploadedName)
-
-                // Run server-side detection on the same photo
-                val labels = withContext(Dispatchers.IO) { detectObjectsOnSavedPhoto(savedUri) }
-
-                _state.value = _state.value.copy(
-                    message = "Uploaded $uploadedName\n$url\nDetected: $labels"
-                )
+            val savedUri = try {
+                MediaStoreSaver.savePhoto(getApplication(), imageCapture)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(message = "Save/Upload failed: ${e.message}")
+                _state.value = _state.value.copy(message = "Save failed: ${e.message}")
+                return@launch
             }
+
+            if (savedUri == null) {
+                _state.value = _state.value.copy(message = "Save failed: URI")
+                return@launch
+            }
+
+            val uploadedName = try {
+                withContext(Dispatchers.IO) { uploadSavedPhoto(savedUri) }
+            } catch (e: HttpStatusException) {
+                if (e.status.value == 401) {
+                    logout()
+                    _state.value = _state.value.copy(
+                        message = "Saved locally. Please sign in again to upload."
+                    )
+                } else {
+                    _state.value = _state.value.copy(
+                        message = "Saved locally, upload failed: ${e.message}"
+                    )
+                }
+                return@launch
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(message = "Saved locally, upload failed: ${e.message}")
+                return@launch
+            }
+
+            val url = api.photoUrl(uploadedName)
+
+            val labels = runCatching {
+                withContext(Dispatchers.IO) { detectObjectsOnSavedPhoto(savedUri) }
+            }.getOrElse { e ->
+                "Detection failed: ${e.message}"
+            }
+
+            _state.value = _state.value.copy(
+                message = "Uploaded $uploadedName\n$url\nDetected: $labels"
+            )
         }
     }
 
@@ -498,6 +521,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 val tensorImage = org.tensorflow.lite.support.image.TensorImage.fromBitmap(bmp)
                 val detections = efficientDetLite2.detect(tensorImage) // sync call
 
+                val bufferToSensor = android.graphics.Matrix().apply {
+                    imageProxy.imageInfo.sensorToBufferTransformMatrix.invert(this)
+                }
+
                 val raw = buildList {
                     for (det in detections) {
                         val (label, score) = preferredAllowedCategory(det.categories) ?: continue
@@ -513,10 +540,16 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                         }
                         if (score < minScore) continue
                         val r = det.boundingBox
+                        val sensorRect = RectF(r.left, r.top, r.right, r.bottom).also {
+                            bufferToSensor.mapRect(it)
+                        }
                         add(
                             RawDetection(
                                 rectPx = androidx.compose.ui.geometry.Rect(
-                                    r.left, r.top, r.right, r.bottom
+                                    sensorRect.left,
+                                    sensorRect.top,
+                                    sensorRect.right,
+                                    sensorRect.bottom
                                 ),
                                 label = label,
                                 score = score
@@ -527,9 +560,6 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 _rawDetections.value = raw
 
                 // Keep your overlay in sync: analyzerBuffer -> sensor
-                val bufferToSensor = android.graphics.Matrix().apply {
-                    imageProxy.imageInfo.sensorToBufferTransformMatrix.invert(this)
-                }
                 _analyzerToSensor.value = bufferToSensor
             } catch (t: Throwable) {
                 _state.value = _state.value.copy(message = "EfficientDet Lite2 error: ${t.message}")
@@ -560,6 +590,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             (app.getSystemService(Context.WINDOW_SERVICE) as WindowManager)
                 .defaultDisplay.rotation
         }
+    }
+
+    private fun viewportRational(): Rational {
+        val dm = getApplication<Application>().resources.displayMetrics
+        val width = dm.widthPixels.coerceAtLeast(1)
+        val height = dm.heightPixels.coerceAtLeast(1)
+        return Rational(width, height)
     }
 
 }

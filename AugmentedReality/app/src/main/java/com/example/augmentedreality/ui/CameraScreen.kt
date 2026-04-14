@@ -12,6 +12,7 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.viewfinder.core.ImplementationMode
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 
@@ -43,7 +44,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.aspectRatio
 
 
 
@@ -76,8 +76,6 @@ fun CameraRoute ( vm: CameraViewModel = viewModel() ) {
     //
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // VM publishes each frrane; maps analyzer-buffer coords to sensor cords
-    val analyzerToSensor by vm.analyzerToSensor.collectAsState()
     // List from data class with rect + label + score
     val rawDetections by vm.rawDetections.collectAsState()
     // Build the list of permissions once
@@ -161,28 +159,18 @@ fun CameraRoute ( vm: CameraViewModel = viewModel() ) {
                         kotlinx.coroutines.awaitCancellation()
                     }
 
-                val previewAspect = transformInfo.value?.let { info ->
-                    val crop = info.cropRect
-                    if (crop.width() <= 0 || crop.height() <= 0) {
-                        null
-                    } else if (info.rotationDegrees % 180 == 0) {
-                        crop.width().toFloat() / crop.height().toFloat()
-                    } else {
-                        crop.height().toFloat() / crop.width().toFloat()
-                    }
-                }?.takeIf { it.isFinite() && it > 0f } ?: (3f / 4f)
-
-                // Keep preview and overlay in one aspect-ratio constrained box.
+                // Keep preview and overlay in the same full camera area.
+                // CameraXViewfinder owns the scale/crop transform; the overlay uses the same matrix.
                 Box(
                     Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(previewAspect)
+                        .fillMaxSize()
                         .align(Alignment.Center)
                 ) {
                     if (sr != null) {
                         CameraXViewfinder(
                             modifier = Modifier.fillMaxSize(),
                             surfaceRequest = sr,
+                            implementationMode = ImplementationMode.EMBEDDED,
                             coordinateTransformer = transformer
                         )
                     }
@@ -196,26 +184,17 @@ fun CameraRoute ( vm: CameraViewModel = viewModel() ) {
                     Canvas(Modifier.matchParentSize()) {
                         val info = transformInfo.value ?: return@Canvas
 
-                        // Android matrices to multiply with
                         val sensorToPreviewBufferAndroid: android.graphics.Matrix =
                             info.sensorToBufferTransform
-                        val analyzerToSensorAndroid: android.graphics.Matrix =
-                            analyzerToSensor   // from VM publish each frame
-
-                        // analysis -> previewBuffer = (sensor->previewBuffer) x (analysis->sensor)
-                        val analysisToPreviewAndroid = android.graphics.Matrix().apply {
-                            set(analyzerToSensorAndroid)
-                            postConcat(sensorToPreviewBufferAndroid) // apply previous transform and then this one
-                        }
 
                         // Convert to Compose matrix once
-                        val analysisToPreview = androidx.compose.ui.graphics.Matrix().apply {
-                            setFrom(analysisToPreviewAndroid)
+                        val sensorToPreview = androidx.compose.ui.graphics.Matrix().apply {
+                            setFrom(sensorToPreviewBufferAndroid)
                         }
 
                         rawDetections.forEach { det ->
-                            // map analyzer rect -> preview buffer
-                            val bufRect = analysisToPreview.map(det.rectPx)
+                            // map sensor rect -> preview buffer
+                            val bufRect = sensorToPreview.map(det.rectPx)
                             // map preview buffer -> UI
                             val uiRect = bufferToUi.map(bufRect)
 

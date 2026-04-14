@@ -41,7 +41,7 @@ class JwtService(
                 .withAudience(audience)
                 .withIssuer(issuer)
                 .withClaim("username", loginRequest.username)
-                .withExpiresAt(Date(System.currentTimeMillis() + 3_600_000))
+                .withExpiresAt(Date(System.currentTimeMillis() + 24 * 3_600_000))
                 .sign(Algorithm.HMAC256(secret))
         }
 
@@ -91,5 +91,4 @@ class JwtService(
     private fun extractUsername(credential: JWTCredential): String? =
         credential.payload.getClaim("username").asString()
 }
-
 

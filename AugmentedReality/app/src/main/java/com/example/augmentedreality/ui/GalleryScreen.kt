@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
@@ -159,16 +161,6 @@ fun GalleryScreen(
                 .build(),
             analysis = selectedAnalysis,
             busy = detailBusy,
-            onAnalyze = {
-                selectedAnalysis = "Analyzing..."
-                detailBusy = true
-                scope.launch {
-                    runCatching { vm.analyzeServerPhoto(detailName) }
-                        .onSuccess { result -> selectedAnalysis = result }
-                        .onFailure { e -> selectedAnalysis = "Analyze failed: ${e.message}" }
-                    detailBusy = false
-                }
-            },
             onDelete = {
                 selectedAnalysis = "Deleting..."
                 detailBusy = true
@@ -201,7 +193,6 @@ private fun PhotoDetailDialog(
     imageModel: ImageRequest,
     analysis: String?,
     busy: Boolean,
-    onAnalyze: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -209,7 +200,9 @@ private fun PhotoDetailDialog(
         onDismissRequest = onDismiss,
         title = { Text(name) },
         text = {
-            Column {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
                 AsyncImage(
                     model = imageModel,
                     contentDescription = name,
@@ -225,20 +218,14 @@ private fun PhotoDetailDialog(
         confirmButton = {
             TextButton(
                 enabled = !busy,
-                onClick = onAnalyze
-            ) { Text("Analyze") }
+                onClick = onDismiss
+            ) { Text("Close") }
         },
         dismissButton = {
-            Row {
-                TextButton(
-                    enabled = !busy,
-                    onClick = onDelete
-                ) { Text("Delete") }
-                TextButton(
-                    enabled = !busy,
-                    onClick = onDismiss
-                ) { Text("Close") }
-            }
+            TextButton(
+                enabled = !busy,
+                onClick = onDelete
+            ) { Text("Delete") }
         }
     )
 }

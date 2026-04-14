@@ -139,7 +139,7 @@ class ApiClient(private val debugLogging: Boolean = true) {
             )
         }
         if (!resp.status.isSuccess()) {
-            throw IllegalStateException("Upload failed: ${resp.status} ${resp.bodyAsText()}")
+            throw HttpStatusException(resp.status, resp.bodyAsText())
         }
         return resp.bodyAsText()
     }
