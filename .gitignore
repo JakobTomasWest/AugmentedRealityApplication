@@ -1,0 +1,11 @@
+# Local user data and generated files
+ApplicationServer/uploads/
+ApplicationServer/ml_server/__pycache__/
+*.pyc
+
+# IDE state
+AugmentedReality/.idea/
+.idea/
+
+# OS files
+.DS_Store

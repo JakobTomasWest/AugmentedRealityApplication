@@ -164,9 +164,6 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // RO view for Ui to collectAsState without being able to modify
     val state = _state.asStateFlow()
 
-    // Matrix that maps analyzer buffer → sensor (really: inverse of sensorToBuffer for analyzer)
-    private val _analyzerToSensor = MutableStateFlow(android.graphics.Matrix())  // analysis-buffer → sensor
-    val analyzerToSensor = _analyzerToSensor.asStateFlow()
     private val _rawDetections = MutableStateFlow<List<RawDetection>>(emptyList())
     val rawDetections = _rawDetections.asStateFlow()
 
@@ -331,7 +328,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // Add intent handler to hellp UI talk to VM, handle events/process intents by updating state here
+    // Handles UI intents and updates immutable camera state.
     fun handle(intent: CameraIntent) {
         when (intent) {
 
@@ -355,7 +352,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             CameraIntent.ClearMessage -> {
                 _state.value = _state.value.copy(message = null)
             }
-            // Permissions result came back from teh Activity Result API
+            // Permissions result came back from the Activity Result API.
             is CameraIntent.OnPermissionsResult -> {
                 _state.value = _state.value.copy(permissionsGranted = intent.granted)
                 if (!intent.granted) {
@@ -363,9 +360,6 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     _rawDetections.value = emptyList()
                 }
             }
-
-    // ...existing code...
-
         }
 
 
@@ -566,8 +560,6 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _rawDetections.value = raw
 
-                // Keep your overlay in sync: analyzerBuffer -> sensor
-                _analyzerToSensor.value = bufferToSensor
             } catch (t: Throwable) {
                 _state.value = _state.value.copy(message = "EfficientDet Lite2 error: ${t.message}")
             } finally {

@@ -8,7 +8,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.1.20"
 }
 
-group = "com.codersee"
+group = "com.augmentedreality"
 version = "0.0.1"
 
 application {
@@ -28,7 +28,7 @@ tasks.test {
 
 ktor {
     docker {
-        localImageName.set("notes-app-ldap")
+        localImageName.set("augmented-reality-server")
         imageTag.set("1.0.0")
         jreVersion.set(JavaVersion.VERSION_21)
     }
@@ -58,7 +58,6 @@ dependencies {
 
     // --- Logging / Utils ---
     implementation("ch.qos.logback:logback-classic:$logback_version")
-    implementation("at.favre.lib:bcrypt:0.10.2")
 
     // --- Ktor Client ---
     implementation("io.ktor:ktor-client-core-jvm:3.1.2")

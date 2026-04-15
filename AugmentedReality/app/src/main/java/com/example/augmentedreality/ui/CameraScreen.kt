@@ -103,7 +103,7 @@ fun CameraRoute ( vm: CameraViewModel = viewModel() ) {
         permissionLauncher.launch(requiredPerms)
     }
 
-    // When permissions are granted/becoem true or the lensFacing changes, re/bind the camera
+    // Rebind the camera when permissions, lens direction, or gallery visibility changes.
     LaunchedEffect(state.permissionsGranted, state.lensFacing, showGallery) {
         if (state.permissionsGranted && !showGallery) {
             vm.startPreview(owner) // tell the VM to bind preview, imagecapture, analysis

@@ -1,1 +1,1 @@
-rootProject.name = "com.codersee.ktor-jwt"
+rootProject.name = "augmented-reality-server"
