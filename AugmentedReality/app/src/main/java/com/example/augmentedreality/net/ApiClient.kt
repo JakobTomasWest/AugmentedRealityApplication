@@ -182,7 +182,9 @@ class ApiClient(private val debugLogging: Boolean = true) {
         val left: Int,
         val top: Int,
         val right: Int,
-        val bottom: Int
+        val bottom: Int,
+        val imageWidth: Int = 0,
+        val imageHeight: Int = 0
     )
 
     private fun parseDetectionsJson(text: String): List<ServerDetection> {
@@ -197,7 +199,9 @@ class ApiClient(private val debugLogging: Boolean = true) {
                     left = o.optInt("left", 0),
                     top = o.optInt("top", 0),
                     right = o.optInt("right", 0),
-                    bottom = o.optInt("bottom", 0)
+                    bottom = o.optInt("bottom", 0),
+                    imageWidth = o.optInt("image_width", 0),
+                    imageHeight = o.optInt("image_height", 0)
                 )
             )
         }

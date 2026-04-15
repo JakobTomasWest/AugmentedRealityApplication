@@ -377,12 +377,19 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun analyzeServerPhoto(name: String): String {
         val t = ensureToken()
-        val dets = api.detectObjectsByName(t, name)
+        val dets = analyzeServerPhotoDetections(name)
         return if (dets.isEmpty()) {
             "No objects detected"
         } else {
             dets.take(10).joinToString(separator = "\n") { "${it.label} ${(it.score * 100).toInt()}%" }
         }
+    }
+
+    suspend fun analyzeServerPhotoDetections(name: String): List<ApiClient.ServerDetection> {
+        val t = ensureToken()
+        return api.detectObjectsByName(t, name)
+            .sortedByDescending { it.score }
+            .take(10)
     }
 
     suspend fun uploadSavedPhoto(savedUri: Uri): String {

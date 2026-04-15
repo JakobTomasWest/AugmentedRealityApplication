@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from transformers import pipeline
-from PIL import Image
+from PIL import Image, ImageOps
 import io, os, torch
 
 app = FastAPI()
@@ -22,7 +22,8 @@ def _pil_from_upload(upload: UploadFile) -> Image.Image:
     b = upload.file.read() if hasattr(upload, "file") else None
     if not b:
         b = io.BytesIO(upload.file.read())
-    img = Image.open(io.BytesIO(b if isinstance(b, (bytes, bytearray)) else upload)).convert("RGB")
+    img = Image.open(io.BytesIO(b if isinstance(b, (bytes, bytearray)) else upload))
+    img = ImageOps.exif_transpose(img).convert("RGB")
     return img
 
 @app.on_event("startup")
@@ -39,6 +40,7 @@ async def healthz():
 async def detect(image: UploadFile = File(...)):
     try:
         pil = _pil_from_upload(image)
+        image_width, image_height = pil.size
         out = pipe(pil)
 
         if MODEL_TASK == "object-detection":
@@ -62,6 +64,8 @@ async def detect(image: UploadFile = File(...)):
                     "score":  float(o.get("score", 0.0)),
                     "left":   int(left), "top": int(top),
                     "right":  int(right), "bottom": int(bottom),
+                    "image_width": image_width,
+                    "image_height": image_height,
                 })
             return JSONResponse(results)
 
